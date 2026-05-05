@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧渔业管理系统 | Smart Fishery</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(30, 41, 59, 0.8) 100%);
+            border-left: 4px solid #38bdf8;
+        }
+        
+        .warning-card {
+            background: linear-gradient(135deg, rgba(251, 146, 60, 0.1) 0%, rgba(30, 41, 59, 0.8) 100%);
+            border-left: 4px solid #fb923c;
+        }
+        
+        .danger-card {
+            background: linear-gradient(135deg, rgba(248, 113, 113, 0.1) 0%, rgba(30, 41, 59, 0.8) 100%);
+            border-left: 4px solid #f87171;
+        }
+        
+        .success-card {
+            background: linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(30, 41, 59, 0.8) 100%);
+            border-left: 4px solid #4ade80;
+        }
+        
+        .pond-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .pond-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .pond-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+        }
+        
+        .water-animation {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .water-animation::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 40%;
+            background: linear-gradient(to top, rgba(56, 189, 248, 0.2), transparent);
+            animation: wave 3s ease-in-out infinite;
+        }
+        
+        @keyframes wave {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .sidebar-item {
+            transition: all 0.2s;
+            border-radius: 0.5rem;
+        }
+        
+        .sidebar-item:hover, .sidebar-item.active {
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+        }
+        
+        .sidebar-item.active {
+            border-left: 3px solid #38bdf8;
+        }
+        
+        .feed-progress {
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(148, 163, 184, 0.2);
+            overflow: hidden;
+        }
+        
+        .feed-progress-bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+        
+        .device-toggle {
+            appearance: none;
+            width: 44px;
+            height: 24px;
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .device-toggle::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+        }
+        
+        .device-toggle:checked {
+            background: #38bdf8;
+        }
+        
+        .device-toggle:checked::after {
+            transform: translateX(20px);
+        }
+        
+        .alert-banner {
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+        }
+        
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.5);
+        }
+    </style>
+</head>
+<body class="antialiased overflow-hidden h-screen flex">
+
+<aside class="w-64 glass-panel flex flex-col h-full z-20">
+    <div class="p-6 border-b border-slate-700/50">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center">
+                <i class="fas fa-fish text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg text-white">智慧渔业</h1>
+                <p class="text-xs text-slate-400">Smart Fishery v2.0</p>
+            </div>
+        </div>
+    </div>
+    
+    <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+        <a href="#" class="sidebar-item active flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-300" onclick="switchTab('dashboard')">
+            <i class="fas fa-chart-line w-5"></i>
+            <span>数据总览</span>
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-300" onclick="switchTab('ponds')">
+            <i class="fas fa-water w-5"></i>
+            <span>鱼塘管理</span>
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-300" onclick="switchTab('devices')">
+            <i class="fas fa-microchip w-5"></i>
+            <span>智能设备</span>
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-300" onclick="switchTab('feeding')">
+            <i class="fas fa-utensils w-5"></i>
+            <span>智能投喂</span>
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-300" onclick="switchTab('analysis')">
+            <i class="fas fa-brain w-5"></i>
+            <span>AI 分析</span>
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-300" onclick="switchTab('alerts')">
+            <i class="fas fa-bell w-5"></i>
+            <span>预警中心</span>
+            <span class="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full" id="alert-count">3</span>
+        </a>
+    </nav>
+    
+    <div class="p-4 border-t border-slate-700/50">
+        <div class="glass-panel rounded-lg p-4">
+            <div class="flex items-center gap-3 mb-3">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=fisher" class="w-10 h-10 rounded-full bg-slate-600" alt="User">
+                <div>
+                    <p class="text-sm font-medium text-white">张师傅</p>
+                    <p class="text-xs text-slate-400">高级养殖员</p>
+                </div>
+            </div>
+            <div class="flex justify-between text-xs text-slate-400">
+                <span>在线设备: <span class="text-cyan-400 font-bold">12/14</span></span>
+                <span>运行率: <span class="text-green-400 font-bold">85%</span></span>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<main class="flex-1 flex flex-col h-full overflow-hidden relative">
+    <header class="glass-panel h-16 flex items-center justify-between px-8 z-10">
+        <div class="flex items-center gap-4">
+            <h2 class="text-xl font-semibold text-white" id="page-title">数据总览</h2>
+            <span class="text-xs px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                <i class="fas fa-circle text-[8px] mr-1 animate-pulse"></i>实时监控中
+            </span>
+        </div>
+        <div class="flex items-center gap-6">
+            <div class="text-right">
+                <p class="text-xs text-slate-400">当前时间</p>
+                <p class="text-sm font-mono text-cyan-400" id="clock">--:--:--</p>
+            </div>
+            <div class="text-right">
+                <p class="text-xs text-slate-400">天气</p>
+                <p class="text-sm text-white"><i class="fas fa-cloud-sun text-yellow-400 mr-1"></i>24°C 多云</p>
+            </div>
+            <button class="relative p-2 text-slate-400 hover:text-white transition" onclick="toggleAlerts()">
+                <i class="fas fa-bell"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 overflow-auto p-6">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                <div class="metric-card rounded-xl p-5">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-slate-400 text-sm">总鱼塘数量</p>
+                            <h3 class="text-2xl font-bold text-white mt-1">24</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                            <i class="fas fa-water text-cyan-400"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="success-card rounded-xl p-5">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-slate-400 text-sm">溶氧平均值</p>
+                            <h3 class="text-2xl font-bold text-white mt-1">6.8 mg/L</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                            <i class="fas fa-wind text-green-400"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="warning-card rounded-xl p-5">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-slate-400 text-sm">水温平均值</p>
+                            <h3 class="text-2xl font-bold text-white mt-1">22.3°C</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                            <i class="fas fa-temperature-half text-orange-400"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="danger-card rounded-xl p-5">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-slate-400 text-sm">今日预警</p>
+                            <h3 class="text-2xl font-bold text-white mt-1">3 条</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+                            <i class="fas fa-exclamation-triangle text-red-400"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel rounded-xl p-6 mb-6">
+                <h3 class="text-lg font-semibold text-white mb-4">水质数据趋势</h3>
+                <div class="chart-container">
+                    <canvas id="waterChart"></canvas>
+                </div>
+            </div>
+
+            <div class="glass-panel rounded-xl p-6">
+                <h3 class="text-lg font-semibold text-white mb-4">鱼塘实时监控</h3>
+                <div class="pond-grid">
+                    <div class="pond-card glass-panel rounded-xl p-5 water-animation">
+                        <div class="flex justify-between items-start mb-3">
+                            <h4 class="font-semibold text-white">1号鱼塘</h4>
+                            <span class="status-dot bg-green-400"></span>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">水温</span>
+                                <span class="text-white">22.1°C</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">溶氧</span>
+                                <span class="text-white">6.9 mg/L</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">PH值</span>
+                                <span class="text-white">7.2</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    function updateClock() {
+        const now = new Date();
+        const time = now.toLocaleTimeString();
+        document.getElementById('clock').textContent = time;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    const ctx = document.getElementById('waterChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+            datasets: [
+                {
+                    label: '溶氧 (mg/L)',
+                    data: [5.2, 4.8, 6.5, 7.2, 6.8, 6.3],
+                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: '水温 (°C)',
+                    data: [20.1, 19.8, 21.5, 23.2, 22.8, 21.9],
+                    borderColor: '#fb923c',
+                    backgroundColor: 'rgba(251, 146, 60, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#e2e8f0' }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                    ticks: { color: '#94a3b8' }
+                },
+                y: {
+                    grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                    ticks: { color: '#94a3b8' }
+                }
+            }
+        }
+    });
+
+    function switchTab(tab) {
+        document.getElementById('page-title').textContent = 
+            tab === 'dashboard' ? '数据总览' :
+            tab === 'ponds' ? '鱼塘管理' :
+            tab === 'devices' ? '智能设备' :
+            tab === 'feeding' ? '智能投喂' :
+            tab === 'analysis' ? 'AI 分析' : '预警中心';
+    }
+</script>
+</body>
+</html>
